@@ -1,0 +1,147 @@
+import pygame
+import chess
+import chess.engine
+import random
+import sys
+
+# Konfiguracja
+WIDTH, HEIGHT = 800, 600
+WHITE = (255, 255, 255)
+GRAY = (128, 128, 128)
+
+# Ścieżka do silnika Stockfish (musisz go pobrać oddzielnie!)
+STOCKFISH_PATH = "sciezka/do/twojego/stockfish.exe"
+
+class ChessGame:
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.display.set_caption("Szachy z Botem")
+        self.clock = pygame.time.Clock()
+        
+        # Stany gry
+        self.state = "MENU"  # MENU, PLAYING, GAMEOVER, ANALYSIS
+        self.board = chess.Board()
+        self.difficulty = "Medium" # Domyślny
+        self.move_history = [] # Do analizy
+        
+        # Inicjalizacja silnika (opcjonalne w tym szkielecie, ale potrzebne do bota)
+        try:
+            self.engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+        except:
+            print("Nie znaleziono Stockfisha - bot będzie grał losowo (tryb awaryjny)")
+            self.engine = None
+
+    def get_bot_move(self):
+        """Logika 4 poziomów trudności"""
+        if self.engine is None:
+            return random.choice(list(self.board.legal_moves))
+
+        limit = None
+        if self.difficulty == "Łatwy":
+            # Bardzo krótki czas lub losowość
+            if random.random() < 0.3: # 30% szans na losowy błędny ruch
+                 return random.choice(list(self.board.legal_moves))
+            limit = chess.engine.Limit(time=0.01)
+            
+        elif self.difficulty == "Średni":
+            limit = chess.engine.Limit(depth=5)
+            
+        elif self.difficulty == "Trudny":
+            limit = chess.engine.Limit(depth=12)
+            
+        elif self.difficulty == "Mistrzowski":
+            limit = chess.engine.Limit(time=1.0) # 1 sekunda to dla silnika wieczność
+
+        result = self.engine.play(self.board, limit)
+        return result.move
+
+    def check_game_over(self):
+        if self.board.is_game_over():
+            self.state = "GAMEOVER"
+            outcome = self.board.outcome()
+            if outcome.termination == chess.Termination.CHECKMATE:
+                print("MAT!")
+            else:
+                print("PAT / REMIS!")
+
+    def draw_menu(self):
+        self.screen.fill(GRAY)
+        # Tutaj rysujesz przyciski: Łatwy, Średni, Trudny, Mistrzowski
+        # (Uproszczony tekst w konsoli zamiast GUI dla czytelności kodu)
+        # Naciśnij 1-4 aby wybrać poziom
+        pass
+
+    def draw_gameover(self):
+        self.screen.fill((50, 0, 0))
+        # Tutaj rysujesz 3 przyciski:
+        # 1. Analiza
+        # 2. Nowa Gra
+        # 3. Menu
+        pass
+
+    def run(self):
+        running = True
+        while running:
+            # Obsługa zdarzeń (kliknięcia)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                
+                if event.type == pygame.KEYDOWN:
+                    # PROSTA OBSŁUGA MENU DLA TESTÓW
+                    if self.state == "MENU":
+                        if event.key == pygame.K_1: 
+                            self.difficulty = "Łatwy"
+                            self.state = "PLAYING"
+                            self.board.reset()
+                        if event.key == pygame.K_4:
+                            self.difficulty = "Mistrzowski"
+                            self.state = "PLAYING"
+                            self.board.reset()
+
+                    # PROSTA OBSŁUGA KONIEC GRY
+                    elif self.state == "GAMEOVER":
+                        if event.key == pygame.K_a: # Analiza
+                            self.state = "ANALYSIS"
+                        if event.key == pygame.K_n: # Nowa Gra
+                            self.state = "PLAYING"
+                            self.board.reset()
+                        if event.key == pygame.K_m: # Menu
+                            self.state = "MENU"
+
+            # Logika gry
+            if self.state == "PLAYING":
+                if not self.board.is_game_over():
+                    # Tura gracza (tutaj musiałbyś dodać obsługę myszki)
+                    # Dla testu: zróbmy, że gracz gra losowo
+                    # if self.board.turn == chess.WHITE: ...
+                    
+                    # Tura bota (Czarne)
+                    if self.board.turn == chess.BLACK:
+                        move = self.get_bot_move()
+                        self.board.push(move)
+                        self.move_history.append(move)
+                        self.check_game_over()
+                else:
+                    self.check_game_over()
+
+            # Rysowanie
+            if self.state == "MENU":
+                self.draw_menu()
+            elif self.state == "PLAYING" or self.state == "ANALYSIS":
+                # Tutaj funkcja rysująca szachownicę i bierki
+                self.screen.fill(WHITE) 
+            elif self.state == "GAMEOVER":
+                self.draw_gameover()
+
+            pygame.display.flip()
+            self.clock.tick(60)
+
+        if self.engine:
+            self.engine.quit()
+        pygame.quit()
+
+if __name__ == "__main__":
+    game = ChessGame()
+    game.run()
